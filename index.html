@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>PayTrackr</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f6f7f9; padding:20px; }
+    .box { max-width:400px; margin:auto; background:#fff; padding:20px; border-radius:8px; }
+    input, button { width:100%; padding:10px; margin:5px 0; }
+  </style>
+</head>
+<body>
+
+<h2 style="text-align:center">PayTrackr</h2>
+
+<div class="box" id="loginBox">
+  <input id="email" placeholder="Email">
+  <input id="password" type="password" placeholder="Senha">
+  <button onclick="login()">Entrar / Criar conta</button>
+</div>
+
+<div class="box" id="app" style="display:none;">
+  <h3>Nova cobrança</h3>
+  <input id="name" placeholder="Cliente">
+  <input id="value" placeholder="Valor">
+  <input id="date" type="date">
+  <button onclick="addCharge()">Adicionar cobrança</button>
+
+  <h3>Minhas cobranças</h3>
+  <div id="charges"></div>
+</div>
+
+<!-- AQUI VAI O FIREBASE -->
+  <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } 
+    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+  import { getFirestore, collection, addDoc, query, where, onSnapshot } 
+    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBkVFfHrty6GYY24qSQnYcUYE-w2LNS3hI",
+    authDomain: "paytrackr-6fede.firebaseapp.com",
+    projectId: "paytrackr-6fede",
+    storageBucket: "paytrackr-6fede",
+    messagingSenderId: "375632005175",
+    appId: "1:375632005175:web:6076bc715141fab86497b2"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  window.login = async function () {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch {
+      await createUserWithEmailAndPassword(auth, email, password);
+    }
+  };
+
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      document.getElementById("loginBox").style.display = "none";
+      document.getElementById("app").style.display = "block";
+      loadCharges();
+    }
+  });
+
+  window.addCharge = async function () {
+    await addDoc(collection(db, "charges"), {
+      user: auth.currentUser.uid,
+      name: document.getElementById("name").value,
+      value: document.getElementById("value").value,
+      date: document.getElementById("date").value,
+      paid: false
+    });
+  };
+
+  function loadCharges() {
+    const q = query(
+      collection(db, "charges"),
+      where("user", "==", auth.currentUser.uid)
+    );
+
+    onSnapshot(q, (snapshot) => {
+      const div = document.getElementById("charges");
+      div.innerHTML = "";
+      snapshot.forEach((doc) => {
+        const c = doc.data();
+        div.innerHTML += `
+          <p><strong>${c.name}</strong> — R$ ${c.value} — ${c.date}</p>
+        `;
+      });
+    });
+  }
+</script>
+
+</body>
+</html>

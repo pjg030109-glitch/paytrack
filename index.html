@@ -2,46 +2,88 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>PayTrackr</title>
+  <title>PayTrackr – Controle de Cobranças</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #f6f7f9;
+      font-family: Inter, Arial, sans-serif;
+      background: #f4f6f8;
       padding: 20px;
+      color: #111;
     }
-    h2, h3 { text-align: center; }
+
+    h2, h3 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
     .box {
       max-width: 420px;
-      margin: 15px auto;
+      margin: 20px auto;
       background: #fff;
-      padding: 20px;
-      border-radius: 8px;
+      padding: 22px;
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.05);
     }
+
     input, button {
       width: 100%;
-      padding: 10px;
+      padding: 12px;
       margin: 6px 0;
-    }
-    .charge {
-      border: 1px solid #ddd;
       border-radius: 6px;
-      padding: 10px;
+      font-size: 14px;
+    }
+
+    input {
+      border: 1px solid #ddd;
+    }
+
+    button {
+      border: none;
+      background: #111;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .charge {
+      border: 1px solid #e1e1e1;
+      border-radius: 6px;
+      padding: 12px;
       margin-bottom: 8px;
+      font-size: 14px;
     }
+
     .paid {
-      background: #eee;
+      background: #f1f1f1;
       text-decoration: line-through;
+      opacity: 0.7;
     }
+
     .upgrade {
-      border: 2px solid #000;
+      border: 2px dashed #111;
       background: #fafafa;
       margin-top: 15px;
+      text-align: center;
+    }
+
+    .small {
+      font-size: 13px;
+      color: #666;
+      text-align: center;
     }
   </style>
 </head>
+
 <body>
 
 <h2>PayTrackr</h2>
+<p class="small">Controle simples de cobranças</p>
 
 <div class="box" id="loginBox">
   <input id="email" placeholder="Email">
@@ -51,13 +93,16 @@
 
 <div class="box" id="app" style="display:none;">
   <h3>Nova cobrança</h3>
-  <input id="name" placeholder="Cliente">
-  <input id="value" placeholder="Valor">
+
+  <input id="name" placeholder="Nome do cliente">
+  <input id="value" type="number" placeholder="Valor (R$)">
   <input id="date" type="date">
+
   <button onclick="addCharge()">Adicionar cobrança</button>
 
   <div id="limitBox" class="upgrade" style="display:none;">
-    <p><strong>Limite do plano grátis atingido</strong></p>
+    <p><strong>Limite do plano gratuito atingido</strong></p>
+    <p class="small">Faça upgrade para continuar</p>
     <button onclick="showUpgrade()">Ver plano Pro</button>
   </div>
 
@@ -66,34 +111,20 @@
 </div>
 
 <div class="box upgrade" id="upgradeBox" style="display:none;">
-  <h3>Plano Pro – R$19/mês</h3>
+  <h3>Plano Pro</h3>
+  <p><strong>R$ 14,90 / mês</strong></p>
   <ul>
     <li>Cobranças ilimitadas</li>
-    <li>Controle completo</li>
     <li>Uso profissional</li>
+    <li>Mais controle financeiro</li>
   </ul>
   <button onclick="activatePro()">Ativar Pro (simulado)</button>
 </div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-  import {
-    getAuth,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
-    onAuthStateChanged
-  } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
-  import {
-    getFirestore,
-    collection,
-    addDoc,
-    query,
-    where,
-    onSnapshot,
-    doc,
-    getDoc,
-    setDoc
-  } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+  import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+  import { getFirestore, collection, addDoc, query, where, onSnapshot, doc, getDoc, setDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBkVFfHrty6GYY24qSQnYcUYE-w2LNS3hI",
@@ -109,18 +140,22 @@
   const db = getFirestore(app);
 
   const FREE_LIMIT = 3;
-  let totalCharges = 0;
   let userPlan = "free";
+  let totalCreated = 0;
 
-  // ✅ LOGIN CORRIGIDO
   window.login = async () => {
-    const emailValue = document.getElementById("email").value;
-    const passwordValue = document.getElementById("password").value;
+    const email = email.value;
+    const password = password.value;
+
+    if (!email || !password) {
+      alert("Preencha email e senha");
+      return;
+    }
 
     try {
-      await signInWithEmailAndPassword(auth, emailValue, passwordValue);
+      await signInWithEmailAndPassword(auth, email, password);
     } catch {
-      await createUserWithEmailAndPassword(auth, emailValue, passwordValue);
+      await createUserWithEmailAndPassword(auth, email, password);
     }
   };
 
@@ -134,64 +169,68 @@
     const snap = await getDoc(userRef);
 
     if (!snap.exists()) {
-      await setDoc(userRef, { plan: "free" });
-      userPlan = "free";
-    } else {
-      userPlan = snap.data().plan || "free";
+      await setDoc(userRef, { plan: "free", totalCreated: 0 });
     }
+
+    userPlan = snap.data().plan || "free";
+    totalCreated = snap.data().totalCreated || 0;
 
     loadCharges();
   });
 
   window.addCharge = async () => {
-    if (userPlan === "free" && totalCharges >= FREE_LIMIT) {
+    const name = document.getElementById("name").value;
+    const value = document.getElementById("value").value;
+    const date = document.getElementById("date").value;
+
+    if (!name || !value || !date) {
+      alert("Preencha todos os campos");
+      return;
+    }
+
+    if (userPlan === "free" && totalCreated >= FREE_LIMIT) {
       limitBox.style.display = "block";
       return;
     }
 
     await addDoc(collection(db, "charges"), {
       user: auth.currentUser.uid,
-      name: document.getElementById("name").value,
-      value: document.getElementById("value").value,
-      date: document.getElementById("date").value,
+      name,
+      value,
+      date,
       paid: false
     });
+
+    await updateDoc(doc(db, "users", auth.currentUser.uid), {
+      totalCreated: increment(1)
+    });
+
+    name.value = value.value = date.value = "";
   };
 
   function loadCharges() {
-    const q = query(
-      collection(db, "charges"),
-      where("user", "==", auth.currentUser.uid)
-    );
+    const q = query(collection(db, "charges"), where("user", "==", auth.currentUser.uid));
 
     onSnapshot(q, (snap) => {
       charges.innerHTML = "";
-      totalCharges = snap.size;
-
       snap.forEach(d => {
         const c = d.data();
         charges.innerHTML += `
           <div class="charge ${c.paid ? "paid" : ""}">
-            <strong>${c.name}</strong> — R$ ${c.value}<br>
-            Vencimento: ${c.date}
+            <strong>${c.name}</strong><br>
+            R$ ${c.value} — ${c.date}
           </div>
         `;
       });
     });
   }
 
-  window.showUpgrade = () => {
-    upgradeBox.style.display = "block";
-  };
+  window.showUpgrade = () => upgradeBox.style.display = "block";
 
   window.activatePro = async () => {
-    await setDoc(
-      doc(db, "users", auth.currentUser.uid),
-      { plan: "pro" },
-      { merge: true }
-    );
+    await updateDoc(doc(db, "users", auth.currentUser.uid), { plan: "pro" });
     userPlan = "pro";
-    alert("Plano Pro ativado (simulado)");
+    alert("Plano Pro ativado");
     upgradeBox.style.display = "none";
     limitBox.style.display = "none";
   };

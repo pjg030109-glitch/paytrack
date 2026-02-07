@@ -9,7 +9,7 @@
       background: #f6f7f9;
       padding: 20px;
     }
-    h2 { text-align: center; }
+    h2, h3 { text-align: center; }
     .box {
       max-width: 420px;
       margin: 15px auto;
@@ -36,12 +36,9 @@
       border-color: red;
       background: #ffecec;
     }
-    .late strong { color: red; }
-    .limit {
-      color: red;
-      font-weight: bold;
-      margin-top: 10px;
-      text-align: center;
+    .upgrade {
+      border: 2px solid #000;
+      background: #fafafa;
     }
   </style>
 </head>
@@ -61,12 +58,33 @@
   <input id="value" placeholder="Valor">
   <input id="date" type="date">
   <button onclick="addCharge()">Adicionar cobrança</button>
-  <div id="limitMsg" class="limit" style="display:none;">
-    Limite do plano grátis atingido (3 cobranças)
+
+  <div id="limitBox" class="upgrade" style="display:none;">
+    <h3>Limite atingido</h3>
+    <p>Você atingiu o limite do plano grátis.</p>
+    <button onclick="showUpgrade()">Ver plano Pro</button>
   </div>
 
   <h3>Minhas cobranças</h3>
   <div id="charges"></div>
+</div>
+
+<div class="box upgrade" id="upgradeBox" style="display:none;">
+  <h3>Plano Pro</h3>
+  <p><strong>Grátis</strong></p>
+  <ul>
+    <li>Até 3 cobranças</li>
+    <li>Sem histórico completo</li>
+  </ul>
+
+  <p><strong>Pro – R$19/mês</strong></p>
+  <ul>
+    <li>Cobranças ilimitadas</li>
+    <li>Histórico completo</li>
+    <li>Controle profissional</li>
+  </ul>
+
+  <button onclick="activatePro()">Quero o Pro</button>
 </div>
 
 <script type="module">
@@ -84,8 +102,9 @@
     query,
     where,
     onSnapshot,
-    updateDoc,
-    doc
+    doc,
+    getDoc,
+    setDoc
   } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -102,11 +121,12 @@
   const db = getFirestore(app);
 
   let totalCharges = 0;
+  let userPlan = "free";
   const FREE_LIMIT = 3;
 
-  window.login = async function () {
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
+  window.login = async () => {
+    const email = email.value;
+    const password = password.value;
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch {
@@ -114,31 +134,37 @@
     }
   };
 
-  onAuthStateChanged(auth, (user) => {
+  onAuthStateChanged(auth, async (user) => {
     if (user) {
-      document.getElementById("loginBox").style.display = "none";
-      document.getElementById("app").style.display = "block";
+      loginBox.style.display = "none";
+      app.style.display = "block";
+
+      const userRef = doc(db, "users", user.uid);
+      const snap = await getDoc(userRef);
+
+      if (!snap.exists()) {
+        await setDoc(userRef, { plan: "free" });
+      } else {
+        userPlan = snap.data().plan;
+      }
+
       loadCharges();
     }
   });
 
-  window.addCharge = async function () {
-    if (totalCharges >= FREE_LIMIT) {
-      document.getElementById("limitMsg").style.display = "block";
+  window.addCharge = async () => {
+    if (userPlan === "free" && totalCharges >= FREE_LIMIT) {
+      limitBox.style.display = "block";
       return;
     }
 
     await addDoc(collection(db, "charges"), {
       user: auth.currentUser.uid,
-      name: document.getElementById("name").value,
-      value: document.getElementById("value").value,
-      date: document.getElementById("date").value,
+      name: name.value,
+      value: value.value,
+      date: date.value,
       paid: false
     });
-  };
-
-  window.markAsPaid = async function (id) {
-    await updateDoc(doc(db, "charges", id), { paid: true });
   };
 
   function loadCharges() {
@@ -147,36 +173,37 @@
       where("user", "==", auth.currentUser.uid)
     );
 
-    onSnapshot(q, (snapshot) => {
-      const div = document.getElementById("charges");
-      div.innerHTML = "";
-      totalCharges = snapshot.size;
+    onSnapshot(q, (snap) => {
+      charges.innerHTML = "";
+      totalCharges = snap.size;
 
-      document.getElementById("limitMsg").style.display =
-        totalCharges >= FREE_LIMIT ? "block" : "none";
-
-      const today = new Date();
-      today.setHours(0,0,0,0);
-
-      snapshot.forEach((docSnap) => {
-        const c = docSnap.data();
-        const id = docSnap.id;
-        const isLate = !c.paid && new Date(c.date) < today;
-
-        div.innerHTML += `
-          <div class="charge ${c.paid ? "paid" : ""} ${isLate ? "late" : ""}">
+      snap.forEach(d => {
+        const c = d.data();
+        charges.innerHTML += `
+          <div class="charge ${c.paid ? "paid" : ""}">
             <strong>${c.name}</strong> — R$ ${c.value}<br>
-            Vencimento: ${c.date}<br>
-            ${
-              c.paid
-                ? "<em>Paga</em>"
-                : `<button onclick="markAsPaid('${id}')">Marcar como paga</button>`
-            }
+            Vencimento: ${c.date}
           </div>
         `;
       });
     });
   }
+
+  window.showUpgrade = () => {
+    upgradeBox.style.display = "block";
+  };
+
+  window.activatePro = async () => {
+    await setDoc(
+      doc(db, "users", auth.currentUser.uid),
+      { plan: "pro" },
+      { merge: true }
+    );
+    alert("Plano Pro ativado (simulado)");
+    userPlan = "pro";
+    upgradeBox.style.display = "none";
+    limitBox.style.display = "none";
+  };
 </script>
 
 </body>

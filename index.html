@@ -32,13 +32,10 @@
       background: #eee;
       text-decoration: line-through;
     }
-    .late {
-      border-color: red;
-      background: #ffecec;
-    }
     .upgrade {
       border: 2px solid #000;
       background: #fafafa;
+      margin-top: 15px;
     }
   </style>
 </head>
@@ -60,8 +57,7 @@
   <button onclick="addCharge()">Adicionar cobrança</button>
 
   <div id="limitBox" class="upgrade" style="display:none;">
-    <h3>Limite atingido</h3>
-    <p>Você atingiu o limite do plano grátis.</p>
+    <p><strong>Limite do plano grátis atingido</strong></p>
     <button onclick="showUpgrade()">Ver plano Pro</button>
   </div>
 
@@ -70,21 +66,13 @@
 </div>
 
 <div class="box upgrade" id="upgradeBox" style="display:none;">
-  <h3>Plano Pro</h3>
-  <p><strong>Grátis</strong></p>
-  <ul>
-    <li>Até 3 cobranças</li>
-    <li>Sem histórico completo</li>
-  </ul>
-
-  <p><strong>Pro – R$19/mês</strong></p>
+  <h3>Plano Pro – R$19/mês</h3>
   <ul>
     <li>Cobranças ilimitadas</li>
-    <li>Histórico completo</li>
-    <li>Controle profissional</li>
+    <li>Controle completo</li>
+    <li>Uso profissional</li>
   </ul>
-
-  <button onclick="activatePro()">Quero o Pro</button>
+  <button onclick="activatePro()">Ativar Pro (simulado)</button>
 </div>
 
 <script type="module">
@@ -120,36 +108,39 @@
   const auth = getAuth(app);
   const db = getFirestore(app);
 
+  const FREE_LIMIT = 3;
   let totalCharges = 0;
   let userPlan = "free";
-  const FREE_LIMIT = 3;
 
+  // ✅ LOGIN CORRIGIDO
   window.login = async () => {
-    const email = email.value;
-    const password = password.value;
+    const emailValue = document.getElementById("email").value;
+    const passwordValue = document.getElementById("password").value;
+
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, emailValue, passwordValue);
     } catch {
-      await createUserWithEmailAndPassword(auth, email, password);
+      await createUserWithEmailAndPassword(auth, emailValue, passwordValue);
     }
   };
 
   onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      loginBox.style.display = "none";
-      app.style.display = "block";
+    if (!user) return;
 
-      const userRef = doc(db, "users", user.uid);
-      const snap = await getDoc(userRef);
+    loginBox.style.display = "none";
+    app.style.display = "block";
 
-      if (!snap.exists()) {
-        await setDoc(userRef, { plan: "free" });
-      } else {
-        userPlan = snap.data().plan;
-      }
+    const userRef = doc(db, "users", user.uid);
+    const snap = await getDoc(userRef);
 
-      loadCharges();
+    if (!snap.exists()) {
+      await setDoc(userRef, { plan: "free" });
+      userPlan = "free";
+    } else {
+      userPlan = snap.data().plan || "free";
     }
+
+    loadCharges();
   });
 
   window.addCharge = async () => {
@@ -160,9 +151,9 @@
 
     await addDoc(collection(db, "charges"), {
       user: auth.currentUser.uid,
-      name: name.value,
-      value: value.value,
-      date: date.value,
+      name: document.getElementById("name").value,
+      value: document.getElementById("value").value,
+      date: document.getElementById("date").value,
       paid: false
     });
   };
@@ -199,8 +190,8 @@
       { plan: "pro" },
       { merge: true }
     );
-    alert("Plano Pro ativado (simulado)");
     userPlan = "pro";
+    alert("Plano Pro ativado (simulado)");
     upgradeBox.style.display = "none";
     limitBox.style.display = "none";
   };

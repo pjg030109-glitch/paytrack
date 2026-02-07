@@ -4,14 +4,48 @@
   <meta charset="UTF-8" />
   <title>PayTrackr</title>
   <style>
-    body { font-family: Arial, sans-serif; background:#f6f7f9; padding:20px; }
-    .box { max-width:400px; margin:auto; background:#fff; padding:20px; border-radius:8px; }
-    input, button { width:100%; padding:10px; margin:5px 0; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f6f7f9;
+      padding: 20px;
+    }
+    h2 {
+      text-align: center;
+    }
+    .box {
+      max-width: 420px;
+      margin: 15px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin: 6px 0;
+    }
+    .charge {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+    .paid {
+      background: #eee;
+      text-decoration: line-through;
+    }
+    .late {
+      border-color: red;
+      background: #ffecec;
+    }
+    .late strong {
+      color: red;
+    }
   </style>
 </head>
 <body>
 
-<h2 style="text-align:center">PayTrackr</h2>
+<h2>PayTrackr</h2>
 
 <div class="box" id="loginBox">
   <input id="email" placeholder="Email">
@@ -30,19 +64,30 @@
   <div id="charges"></div>
 </div>
 
-<!-- AQUI VAI O FIREBASE -->
-  <script type="module">
+<script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-  import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } 
-    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
-  import { getFirestore, collection, addDoc, query, where, onSnapshot } 
-    from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+  import {
+    getAuth,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    onAuthStateChanged
+  } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+  import {
+    getFirestore,
+    collection,
+    addDoc,
+    query,
+    where,
+    onSnapshot,
+    updateDoc,
+    doc
+  } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBkVFfHrty6GYY24qSQnYcUYE-w2LNS3hI",
     authDomain: "paytrackr-6fede.firebaseapp.com",
     projectId: "paytrackr-6fede",
-    storageBucket: "paytrackr-6fede",
+    storageBucket: "paytrackr-6fede.firebasestorage.app",
     messagingSenderId: "375632005175",
     appId: "1:375632005175:web:6076bc715141fab86497b2"
   };
@@ -80,6 +125,11 @@
     });
   };
 
+  window.markAsPaid = async function (id) {
+    const ref = doc(db, "charges", id);
+    await updateDoc(ref, { paid: true });
+  };
+
   function loadCharges() {
     const q = query(
       collection(db, "charges"),
@@ -89,10 +139,30 @@
     onSnapshot(q, (snapshot) => {
       const div = document.getElementById("charges");
       div.innerHTML = "";
-      snapshot.forEach((doc) => {
-        const c = doc.data();
+
+      const today = new Date();
+      today.setHours(0,0,0,0);
+
+      snapshot.forEach((docSnap) => {
+        const c = docSnap.data();
+        const id = docSnap.id;
+
+        const dueDate = new Date(c.date);
+        const isLate = !c.paid && dueDate < today;
+
         div.innerHTML += `
-          <p><strong>${c.name}</strong> — R$ ${c.value} — ${c.date}</p>
+          <div class="charge ${c.paid ? "paid" : ""} ${isLate ? "late" : ""}">
+            <strong>${c.name}</strong> — R$ ${c.value}<br>
+            Vencimento: ${c.date}<br>
+            ${
+              c.paid
+                ? "<em>Paga</em>"
+                : isLate
+                  ? `<strong>ATRASADA</strong><br>
+                     <button onclick="markAsPaid('${id}')">Marcar como paga</button>`
+                  : `<button onclick="markAsPaid('${id}')">Marcar como paga</button>`
+            }
+          </div>
         `;
       });
     });
